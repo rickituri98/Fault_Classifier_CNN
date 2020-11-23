@@ -164,6 +164,56 @@ def Inputs_Vectors(path, tupfiles, recorders):
   Fault_cat_list = np.array(Fault_cat_list).reshape((s2[0]*s2[2], s2[1]))
   return signal_list, Fault_type_list, Fault_cat_list
 
+def time_event(peaks, ind, t_start, t_end, dur, tsec, n):
+  if t_start == 0 and t_end == 0:
+    t_start = peaks[ind-1]
+    t_end = 1
+  else:
+    t_end = peaks[ind]
+    dur = tsec[-1]*(t_end-t_start)/n
+  return t_start, t_end, dur
+
+def sag_detector(cApprox,peaks,Vpre_sag,t_start,t_end,dur,mag, tsec):
+  haha=False
+  for ind in range(1,len(peaks)-1):
+
+      if (cApprox[peaks[ind]]/Vpre_sag) < 0.9:
+        mag = np.min(cApprox[peaks[1:len(peaks)-1]]/Vpre_sag)
+        t_start, t_end, dur = time_event(peaks, ind, t_start, t_end, dur, tsec, len(cApprox))
+        if haha==False:
+          haha=True
+  return dur,mag
+
+def swell_detector(cApprox,peaks,Vpre_swell,t_start,t_end,dur,mag, tsec):
+  entro=False
+  for ind in range(1,len(peaks)-1):
+
+      if (cApprox[peaks[ind]]/Vpre_swell) > 1.1:
+        t_start, t_end, dur = time_event(peaks, ind, t_start, t_end, dur, tsec, len(cApprox))
+        mag=np.max(cApprox[peaks[ind]])/Vpre_swell
+        if entro==False:
+          entro=True
+  return dur,mag
+
+def event_result(cApprox, tsec):
+
+  peaks, _ = find_peaks(cApprox, height = 0)
+
+  ph_2 = np.max(cApprox)
+  if ph_2 != 0:
+    Vpre_sag = np.max(cApprox[peaks[1:len(peaks)-1]])
+    Vpre_swell = np.min(cApprox[peaks[1:len(peaks)-1]])
+    duration1,magnitude1=sag_detector(cApprox,peaks,Vpre_sag,0,0,0,0, tsec)
+    duration2,magnitude2=swell_detector(cApprox,peaks,Vpre_swell,0,0,0,0, tsec)
+
+    if magnitude1<0.9 and duration1<=duration2:
+      return duration1,magnitude1,True #Tipo Sag
+    return duration2,magnitude2,False #Tipo Swell
+
+  else:
+    return 0, 0, False
+
+
 def Location_groups(path, tupfiles, recorders):
   L1_list = list() # Eventos Linea 692-675 Bus 692
   L2_list = list() # Eventos Linea 632-633 Bus 632
