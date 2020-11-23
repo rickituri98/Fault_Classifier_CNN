@@ -36,9 +36,6 @@ from sklearn.feature_extraction import DictVectorizer
 from sklearn.linear_model import LinearRegression
 from sklearn.metrics import mean_squared_error, r2_score
 
-path_NOGD = '/content/Events_Comtrade/Faults_Recorders_NO_GD_SubTrafo/'
-path_GD = '/content/Events_Comtrade/Faults_Recorders_CON_GD/'
-
 def import_files(path):
   dir_list = sorted(os.listdir(path)) # lista de señales en comtrade
   tupfiles = list() # lista de pares de archivos cfg y dat
@@ -167,77 +164,6 @@ def Inputs_Vectors(path, tupfiles, recorders):
   Fault_cat_list = np.array(Fault_cat_list).reshape((s2[0]*s2[2], s2[1]))
   return signal_list, Fault_type_list, Fault_cat_list
 
-tupfiles_NOGD, recorders_NOGD = import_files(path_NOGD)
-tupfiles_GD, recorders_GD, = import_files(path_GD)
-signals_NOGD, fault_type_NOGD, f_catNOGD = Inputs_Vectors(path_NOGD, tupfiles_NOGD, recorders_NOGD)
-signals_GD, fault_type_GD, f_catGD = Inputs_Vectors(path_GD,tupfiles_GD, recorders_GD)
-
-print(len(signals_NOGD), len(signals_GD), f_catNOGD.shape,  f_catGD.shape)
-print(tupfiles_NOGD)
-
-## UNIFICACIÓN GD y NOGD
-Total_signals = np.concatenate((np.array(signals_NOGD), np.array(signals_GD)), axis = 0)
-Total_faults_types = np.concatenate((fault_type_NOGD, fault_type_GD), axis = 0)
-Total_faults_ids = np.concatenate((f_catNOGD, f_catGD), axis = 0)
-print("# Total de eventos de falla:", Total_signals.shape[0])
-print("# Dimensión del conjunto de eventos de falla etiquetados:",Total_faults_types.shape)
-
-def time_event(peaks, ind, t_start, t_end, dur, tsec, n):
-  if t_start == 0 and t_end == 0:
-    t_start = peaks[ind-1]
-    t_end = 1
-  else:
-    t_end = peaks[ind]
-    dur = tsec[-1]*(t_end-t_start)/n
-  return t_start, t_end, dur
-
-def sag_detector(cApprox,peaks,Vpre_sag,t_start,t_end,dur,mag, tsec):
-  haha=False
-  for ind in range(1,len(peaks)-1):
-
-      if (cApprox[peaks[ind]]/Vpre_sag) < 0.9:
-        mag = np.min(cApprox[peaks[1:len(peaks)-1]]/Vpre_sag)
-        t_start, t_end, dur = time_event(peaks, ind, t_start, t_end, dur, tsec, len(cApprox))
-        if haha==False:
-          #print('Primero')
-          haha=True
-  return dur,mag
-
-def swell_detector(cApprox,peaks,Vpre_swell,t_start,t_end,dur,mag, tsec):
-  entro=False
-  for ind in range(1,len(peaks)-1):
-
-      if (cApprox[peaks[ind]]/Vpre_swell) > 1.1:
-        t_start, t_end, dur = time_event(peaks, ind, t_start, t_end, dur, tsec, len(cApprox))
-        mag=np.max(cApprox[peaks[ind]])/Vpre_swell
-        if entro==False:
-          #print('Segundo')
-          entro=True
-  return dur,mag
-
-def event_result(cApprox, tsec):
-
-  peaks, _ = find_peaks(cApprox, height = 0)
-
-  ph_2 = np.max(cApprox)
-  if ph_2 != 0:
-    Vpre_sag = np.max(cApprox[peaks[1:len(peaks)-1]])
-    Vpre_swell = np.min(cApprox[peaks[1:len(peaks)-1]])
-    #print('sag',Vpre_sag)
-    duration1,magnitude1=sag_detector(cApprox,peaks,Vpre_sag,0,0,0,0, tsec)
-    #print('swell',Vpre_swell)
-    duration2,magnitude2=swell_detector(cApprox,peaks,Vpre_swell,0,0,0,0, tsec)
-    #print('mag1',magnitude1,'dur1',duration1)
-    #print('mag2',magnitude2,'dur2',duration2)
-    if magnitude1<0.9 and duration1<=duration2:
-      return duration1,magnitude1,True #Tipo Sag
-    return duration2,magnitude2,False #Tipo Swell
-
-  else:
-    return 0, 0, False
-
-"""## Characterization of Lines by Location"""
-
 def Location_groups(path, tupfiles, recorders):
   L1_list = list() # Eventos Linea 692-675 Bus 692
   L2_list = list() # Eventos Linea 632-633 Bus 632
@@ -294,10 +220,6 @@ def Location_groups(path, tupfiles, recorders):
 
   return L1_list, L2_list, L3_list, L4_list, loc_orden, loc_orden2, loc_orden3, loc_orden4, cat_fault, cat_fault3, cat_fault4
 
-l692, l632, l684, l645, locl, loc2, loc3, loc4, cat_f692, cat_f684, cat_f645 = Location_groups(path_NOGD, tupfiles_NOGD, recorders_NOGD)
-
-print(len(locl), len(l692), len(l632), len(l684), len(l645))
-
 def Sag_curve(line, type_fault):
   ph_3_curve = []
   ph_2_curve = []
@@ -353,18 +275,6 @@ def Sag_curve(line, type_fault):
       ph_3_curve.append(mag_pro)
   return [np.array(ph_3_curve), np.array(ph_2_curve), np.array(ph_2g_curve), np.array(ph_1_curve)]
 
-#curv3ph, curv2ph, curv2phg, curv1ph = Sag_curve(l692, locl, cat_f692)
-L692_dotcurves = Sag_curve(l692, cat_f692)
-L632_dotcurves = Sag_curve(l632, cat_f692)
-L684_dotcurves = Sag_curve(l684, cat_f684)
-L645_dotcurves = Sag_curve(l645, cat_f645)
-
-print(type(L632_dotcurves[0]), len(L632_dotcurves[0]), len(L632_dotcurves[1]),len(L632_dotcurves[2]), len(L632_dotcurves[-1]))
-#print(curv3ph[10],curv2ph[0], curv1ph[0])
-#print(np.array(curv3ph).shape)
-print(L692_dotcurves[0])
-print(L645_dotcurves[1])
-
 def lin_Regression(location_vec, mag_vec):
   x = np.sort(np.array(location_vec)).reshape((len(location_vec),1))
   y = np.sort(mag_vec).reshape((len(mag_vec),1))
@@ -412,80 +322,6 @@ def find_nearest(array, value):
 
 """##Characteristic curve: Sag magnitude vs Distance (%) """
 
-#print(y_predicted)
-## Curvas para L692
-loc3ph, mag3ph =lin_Regression(loc2, L692_dotcurves[0])
-loc2ph, mag2ph =lin_Regression(loc2, L692_dotcurves[1])
-loc2gph, mag2gph =lin_Regression(loc2, L692_dotcurves[2])
-loc1ph, mag1ph =lin_Regression(locl, L692_dotcurves[-1])
-
-Ch_curves_L692 = {"3-ph":[loc3ph, mag3ph],"2-ph":[loc2ph, mag2ph], "2-phG":[loc2gph, mag2gph], "1-ph":[loc1ph, mag1ph]}
-
-print(len(mag3ph), len(mag2ph), len(mag2gph), len(mag1ph))
-plt.figure()
-plt.plot(loc3ph, mag3ph)
-plt.plot(loc2ph, mag2ph)
-plt.plot(loc2gph, mag2gph)
-plt.plot(loc1ph, mag1ph)
-plt.legend(['3ph', '2ph', '2ph-G', '1ph'])
-plt.grid()
-plt.show
-
-#print(loc3ph[find_nearest(mag3ph, 0.25)])
-
-## Curvas Línea 632
-loc3ph, mag3ph =lin_Regression(loc2, L632_dotcurves[0])
-loc2ph, mag2ph =lin_Regression(loc2, L632_dotcurves[1])
-loc2gph, mag2gph =lin_Regression(loc2, L632_dotcurves[2])
-loc1ph, mag1ph =lin_Regression(locl, L632_dotcurves[-1])
-Ch_curves_L632 = {"3-ph":[loc3ph, mag3ph],"2-ph":[loc2ph, mag2ph], "2-phG":[loc2gph, mag2gph], "1-ph":[loc1ph, mag1ph]}
-
-plt.figure()
-plt.plot(loc3ph, mag3ph)
-plt.plot(loc2ph, mag2ph)
-plt.plot(loc2gph, mag2gph)
-plt.plot(loc1ph, mag1ph)
-plt.legend(['3ph', '2ph', '2ph-G', '1ph'])
-plt.grid()
-plt.show
-
-## Curvas Linea 645
-loc2ph, mag2ph =lin_Regression(loc2, L645_dotcurves[2])
-loc2gph, mag2gph =lin_Regression(loc2, L645_dotcurves[2])
-loc1ph, mag1ph =lin_Regression(locl, L632_dotcurves[-1])
-Ch_curves_L645 = {"2-ph":[loc2ph, mag2ph], "2-phG":[loc2gph, mag2gph], "1-ph":[loc1ph, mag1ph]}
-
-plt.figure()
-plt.plot(loc2ph, mag2ph)
-plt.plot(loc2gph, mag2gph)
-plt.plot(loc1ph, mag1ph)
-plt.legend(['2ph', '2ph-G', '1ph'])
-plt.grid()
-plt.show
-
-#Curva Línea 684
-loc1ph, mag1ph =lin_Regression(locl, L684_dotcurves[-1])
-Ch_curves_L684 = {"2-ph":[loc2ph, mag2ph], "2-phG":[loc2gph, mag2gph], "1-ph":[loc1ph, mag1ph]}
-
-"""## Comparative graph of events with GD and without GD"""
-
-plt.figure(figsize=(15,8))
-plt.plot(1000*signals_NOGD[0].get("time"), signals_NOGD[162].get("A"))
-plt.plot(1000*signals_NOGD[0].get("time"), signals_NOGD[162].get("B"))
-plt.plot(1000*signals_NOGD[0].get("time"), signals_NOGD[162].get("C"))
-#plt.plot(1000*signals_GD[2].get("time"), signals_GD[205].get("A"))
-#plt.plot(1000*signals_GD[2].get("time"), signals_GD[10].get("B"))
-#plt.plot(1000*signals_GD[2].get("time"), signals_GD[10].get("C"))
-plt.legend(["Fase A_NoGD", "Fase B_NoGD", "Fase C_NoGD"])#, "Fase A_GD", "Fase B_GD", "Fase C_GD"])
-plt.xlabel("Tiempo (ms)")
-plt.ylabel("Voltaje (kV)")
-plt.grid()
-plt.show()
-#ph_1, ph_2, ph_2G, ph_3, noF = 0, 1, 2, 3, 4
-print('tipo de falla',f_catNOGD[162])
-
-"""## Distribution between training and test data"""
-
 def get_train_test(y_col, x_col, ratio):
     """
     This method transforms a dataframe into a train and test set, for this you need to specify:
@@ -499,9 +335,6 @@ def get_train_test(y_col, x_col, ratio):
     X_test = x_col[~mask]
     return X_train, Y_train, X_test, Y_test
 
-X_train, Y_train, X_test, Y_test = get_train_test(Total_faults_ids, Total_signals, 0.7) ## First model
-XC_train, YC_train, XC_test, YC_test = get_train_test(Total_faults_types, Total_signals, 0.7) ## Conv Model
-
 def Table_Set(X_train, Y_train, X_test, Y_test):
     id_f = ['Fault Type', 'Train Set', 'Test Set', 'Total']
     faults = ['1Ph', '2Ph', '2Ph-to-G', '3Ph', 'None','Total']
@@ -514,8 +347,6 @@ def Table_Set(X_train, Y_train, X_test, Y_test):
         print(line)
         if i == 0:
             print('-' * len(line))
-
-Table_Set(X_train, Y_train, X_test, Y_test)
 
 ## Almacenamiento de eventos por tipo de falla para usuarios
 def Get_UserTest_Folder(X_testset, Y_testset):
@@ -537,11 +368,6 @@ def Get_UserTest_Folder(X_testset, Y_testset):
       List_none.append(X_testset[j])
   return List_3ph, List_2ph, List_2phG, List_1ph, List_none
 
-L_3ph, L_2ph, L_2phG, L_1ph, L_n = Get_UserTest_Folder(XC_test, YC_test)
-print(len(L_1ph),len(L_2ph),len(L_2phG), len(L_3ph), len(L_n))
-
-"""## Obtaining Discrete Wavelet Transform (DWT)"""
-
 # Conversión a nivel de energía 5 - CORRER SOLO UNA VEZ
 def DWT_Level_N(Xset):
     X_lev5 = copy.deepcopy(Xset)
@@ -557,44 +383,3 @@ def DWT_Level_N(Xset):
         m = np.array([x[i] for i in x.keys()])
         X_mat.append(m.T)
     return X_lev5, cA, X_mat
-
-XTrain_5lev, _, X_mat_Train = DWT_Level_N(XC_train)
-XTest_5lev, _, X_mat_Test = DWT_Level_N(XC_test)
-print(len(XTrain_5lev), X_mat_Train[0].shape, len(X_mat_Train))
-print(len(XTrain_5lev[10].get("C")))
-
-"""## Final Stage: Outputs and results of data handling"""
-
-## EXPORT .MAT FILES and other formats
-import pickle
-Comtrade_signals_dict = {"NOGD_signals": signals_NOGD, "GD_signals": signals_GD}
-Training_Test_set_dict = {"X_train": X_mat_Train, "Y_train": YC_train, "X_test": X_mat_Test, "Y_test":YC_test}
-Test_set_dict = {"X_test":XC_test, "Y_test":YC_test}
-Fault_cats_dict = {"3ph-faults": L_3ph, "2ph-faults": L_2ph, "2phG-faults": L_2phG, "1ph-faults": L_1ph, "No-faults": L_n}
-Curves_Lines_NOGD_dict = {'L692_NOGD':Ch_curves_L692, 'L632_NOGD':Ch_curves_L632, 'L645_NOGD':Ch_curves_L645, 'L684_NOGD':Ch_curves_L684}
-Curves_Lines_GD_dict = {'L692_GD':Ch_curves_L692, 'L632_GD':Ch_curves_L632, 'L645_GD':Ch_curves_L645, 'L684_GD':Ch_curves_L684}
-sio.savemat("Training&Test_set.mat", Training_Test_set_dict)
-
-pickle_out = open("Comtrade_dict.pickle","wb")
-pickle.dump(Comtrade_signals_dict, pickle_out)
-pickle_out.close()
-
-pickle_out2 = open("Test_dict.pickle","wb")
-pickle.dump(Test_set_dict, pickle_out2)
-pickle_out.close()
-
-pickle_out3 = open("Fault_Categories.pickle","wb")
-pickle.dump(Fault_cats_dict, pickle_out3)
-pickle_out.close()
-
-pickle_out4 = open("Curves_Lines_NOGD.pickle","wb")
-pickle.dump(Curves_Lines_NOGD_dict, pickle_out4)
-pickle_out.close()
-
-pickle_out5 = open("Curves_Lines_GD.pickle","wb")
-pickle.dump(Curves_Lines_GD_dict, pickle_out5)
-pickle_out.close()
-
-pickle_out6 = open("Curves_Lines_prueba.pickle","wb")
-pickle.dump(Curves_Lines_NOGD_dict, pickle_out6)
-pickle_out.close()
