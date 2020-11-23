@@ -1,1 +1,1 @@
-# Project1_Relay
+# CNN Model - Voltage disturbances Project
